@@ -80,3 +80,12 @@ export async function findTop5(
   // GOTCHA: the data is in result.rows, not in result itself.
   return result.rows;
 }
+
+// Save ONE chunk. source + position are kept so the bot can cite
+// "nimbus-handbook.md, chunk 3" later.
+export async function insertChunk(source: string, position: number, content: string, embedding: number[]) {
+  await pool.query(
+    `INSERT INTO chunks (source, position, content, embedding) VALUES ($1, $2, $3, $4)`,
+    [source, position, content, JSON.stringify(embedding)]
+  );
+}

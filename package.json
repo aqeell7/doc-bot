@@ -7,7 +7,8 @@
   "test": "echo \"Error: no test specified\" && exit 1",
   "embed": "tsx --env-file=.env src/scripts/embed-sentences.ts",
   "seed": "tsx --env-file=.env src/scripts/seed-sentences.ts",
-  "search": "tsx --env-file=.env src/scripts/search.ts"
+  "search": "tsx --env-file=.env src/scripts/search.ts",
+  "ingest": "tsx --env-file=.env src/scripts/ingest.ts"
 },
   "keywords": [],
   "author": "",
