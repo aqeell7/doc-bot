@@ -36,3 +36,13 @@ CREATE TABLE IF NOT EXISTS drill_vectors (
 --   CREATE INDEX ON sentences USING hnsw (embedding vector_cosine_ops);
 -- "vector_cosine_ops" must match the operator you query with (<=>),
 -- otherwise the index is silently ignored.
+
+CREATE TABLE IF NOT EXISTS chunks (
+  id        bigserial PRIMARY KEY,
+  source    text NOT NULL,
+  position  integer NOT NULL,
+  content   text NOT NULL,
+  embedding vector(1536) NOT NULL
+);
+
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS page integer;

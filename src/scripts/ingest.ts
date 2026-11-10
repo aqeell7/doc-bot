@@ -1,34 +1,56 @@
-import { readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { pool } from "../lib/db";
-import { embedTexts } from "../lib/embed";
+import { parseFile } from "../lib/parse";
+import { embedInBatches, usage } from "../lib/embed";
 import { chunkWithOverlap } from "../lib/chunk";
 import { insertChunk } from "../lib/store";
 
-const source = "nimbus-handbook.md";
-
-// The real kitchen: read → chunk → embed → save.
 async function ingest() {
+  // 1. Read all files in data/docs, keeping only .md and .pdf
+  const files = readdirSync("data/docs").filter(
+    (f) => f.endsWith(".md") || f.endsWith(".pdf")
+  );
+
+  let totalChunks = 0;
+
   try {
-    // 1. Read the document as one string.
-    const text = readFileSync("data/docs/" + source, "utf-8");
+    for (const file of files) {
+      console.log(`Processing: ${file}...`);
+      
+      // Parse file (handles both Markdown and PDFs automatically)
+      const pages = await parseFile("data/docs/" + file);
 
-    // 2. Chunk it with the WINNER from the drill.
-    //    (If fixed won in your drill, swap this one line.)
-    const chunks = chunkWithOverlap(text, 500, 100);
+      // Flatten pages into chunk rows with their respective page numbers
+      const rows: { page: number | null; content: string }[] = [];
+      for (const p of pages) {
+        for (const chunk of chunkWithOverlap(p.text, 500, 100)) {
+          rows.push({ page: p.page, content: chunk });
+        }
+      }
 
-    // 3. Remove this file's old chunks first, so running ingest twice
-    //    doesn't create duplicate rows.
-    await pool.query("DELETE FROM chunks WHERE source = $1", [source]);
+      // Remove old chunks for this file to prevent duplicates
+      await pool.query("DELETE FROM chunks WHERE source = $1", [file]);
 
-    // 4. Embed all chunks in ONE call.
-    const vectors = await embedTexts(chunks);
+      // Embed all chunks in batches of 100
+      const vectors = await embedInBatches(
+        rows.map((r) => r.content),
+        100
+      );
 
-    // 5. Save each chunk with its position (0, 1, 2...).
-    for (let i = 0; i < chunks.length; i++) {
-      await insertChunk(source, i, chunks[i], vectors[i]);
+      // Save each chunk to the database with its position, page, and vector
+      for (let i = 0; i < rows.length; i++) {
+        await insertChunk(file, i, rows[i].page, rows[i].content, vectors[i]);
+      }
+
+      console.log(`-> ${file}: ${rows.length} chunks`);
+      totalChunks += rows.length;
     }
 
-    console.log(`ingested ${chunks.length} chunks from ${source}`);
+    // Calculate total cost using the global usage tracker ($0.02 per 1M tokens)
+    const cost = (usage.tokens / 1_000_000) * 0.02;
+    console.log(
+      `\nTOTAL: ${totalChunks} chunks, ${usage.tokens} tokens, $${cost.toFixed(6)}`
+    );
   } finally {
     await pool.end();
   }

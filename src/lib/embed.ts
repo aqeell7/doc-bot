@@ -7,6 +7,7 @@
 // =====================================================================
 
 import { client } from "./openai";
+export const usage = { tokens:0 };
 
 // SYNTAX: `async` = this function makes a network call and must be awaited.
 // SYNTAX: `Promise<number[][]>` = it hands back an "order slip" (Promise)
@@ -31,6 +32,8 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
     // (dimensions: 3 squashed the meaning and gave crazy scores.)
   });
 
+  usage.tokens += embedding.usage.total_tokens
+
   // Cost tracking: how many tokens this call used.
   console.log("Total Tokens Used:", embedding.usage.total_tokens);
 
@@ -38,4 +41,17 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
   // .map turns [{embedding: [...]}, {embedding: [...]}] into [[...], [...]].
   // The order matches the input order.
   return embedding.data.map((item) => item.embedding);
+}
+
+export async function embedInBatches(texts: string[], batchSize:number): Promise<number[][]>{
+  const all:number[][]= [];
+  let start = 0;
+
+  while(start < texts.length){
+    const batch = texts.slice(start, start+batchSize);
+    const vectors = await embedTexts(batch)
+    all.push(...vectors)
+    start = start + batchSize
+  }
+  return all;
 }
