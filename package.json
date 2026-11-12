@@ -8,7 +8,8 @@
     "embed": "tsx --env-file=.env src/scripts/embed-sentences.ts",
     "seed": "tsx --env-file=.env src/scripts/seed-sentences.ts",
     "search": "tsx --env-file=.env src/scripts/search.ts",
-    "ingest": "tsx --env-file=.env src/scripts/ingest.ts"
+    "ingest": "tsx --env-file=.env src/scripts/ingest.ts",
+    "ask": "tsx --env-file=.env src/scripts/ask.ts"
   },
   "keywords": [],
   "author": "",
