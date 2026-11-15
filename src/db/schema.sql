@@ -46,3 +46,20 @@ CREATE TABLE IF NOT EXISTS chunks (
 );
 
 ALTER TABLE chunks ADD COLUMN IF NOT EXISTS page integer;
+
+-- =====================================================================
+-- Week 2 S1 — keyword (full-text) search
+-- =====================================================================
+-- content_tsv = a ready-made "word index card" for each chunk.
+-- to_tsvector('english', content) cuts the text into words, drops tiny
+-- words ("the", "is"), and trims each word to its root
+-- ("refunds", "refunded" -> "refund").
+-- GENERATED ALWAYS ... STORED = Postgres fills this column by itself,
+-- for the 22 rows already in the table AND every future insert.
+-- So: no re-ingest needed, and insertChunk stays the same.
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS content_tsv tsvector
+  GENERATED ALWAYS AS (to_tsvector('english', content)) STORED;
+
+-- GIN index = the "back-of-the-book index" for words: word -> which rows.
+-- Not needed at 22 rows, but it's the standard partner of a tsvector column.
+CREATE INDEX IF NOT EXISTS chunks_content_tsv_idx ON chunks USING gin (content_tsv);

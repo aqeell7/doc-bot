@@ -1,43 +1,60 @@
 import { pool } from "../lib/db";
-import { retrieve } from "../lib/retrieve";
-import { answerQuestion } from "../lib/answer";
+import { retrieve, vectorSearch, keywordSearch, SearchMode } from "../lib/retrieve";
+import { answerQuestion, RetrievedChunk } from "../lib/answer";
+
+// Read a flag like --mode=hybrid → "hybrid". Missing → undefined.
+function flag(name: string): string | undefined {
+  const arg = process.argv.find((a) => a.startsWith(`--${name}=`));
+  return arg ? arg.split("=")[1] : undefined;
+}
+
+// Print one ranked list in a compact way: [rank] source#chunk (score) text...
+function printList(title: string, list: RetrievedChunk[]) {
+  console.log(`\n${title}:`);
+  if (list.length === 0) console.log("  (nothing)");
+  list.forEach((c, i) => {
+    console.log(
+      `[${i + 1}] ${c.source}#${c.position} (${c.similarity.toFixed(3)}) ${c.content.slice(0, 100).replace(/\s+/g, " ")}...`
+    );
+  });
+}
 
 async function ask() {
-  // --- PART 1: Put this near the top of ask() ---
   const debug = process.argv.includes("--debug");
+  const mode = (flag("mode") ?? "hybrid") as SearchMode; // vector | keyword | hybrid
+  const source = flag("source");                         // e.g. nimbus-admin-guide.pdf
+  const filter = source ? { source } : {};
 
-  const question = process.argv[2];
+  // The question = the first argument that isn't a --flag.
+  const question = process.argv.slice(2).find((a) => !a.startsWith("--"));
   if (!question) {
-    console.log('usage: npm run ask -- "your question"');
+    console.log('usage: npm run ask -- "your question" [--mode=vector|keyword|hybrid] [--source=file] [--debug]');
     return;
   }
 
-  try {
-    // 1. RETRIEVE: the librarian brings the 5 closest chunks
-    const chunks = await retrieve(question, 5);
+  console.log(`MODE: ${mode}${source ? `   SOURCE: ${source}` : ""}`);
 
-    // --- PART 2: ---
-    // Show what the librarian actually brought, so you can tell 
-    // "wrong pages" apart from "right pages, wrong answer".
-    if (debug) {
-      console.log("\nRETRIEVED:");
-      chunks.forEach((c, i) => {
-        console.log(`[${i + 1}] (${c.similarity.toFixed(2)}) ${c.content.slice(0, 150).replace(/\s+/g, " ")}...`);
-      });
+  try {
+    // In hybrid + debug, also show the two lists BEFORE the merge,
+    // so you can see where each chunk came from.
+    if (debug && mode === "hybrid") {
+      printList("VECTOR LIST (before merge)", await vectorSearch(question, 10, filter));
+      printList("KEYWORD LIST (before merge)", await keywordSearch(question, 10, filter));
     }
 
-    // 2 + 3. AUGMENT + GENERATE: the student answers from them
-    const answer = await answerQuestion(question, chunks);
+    // 1. RETRIEVE
+    const chunks = await retrieve(question, 5, mode, filter);
+    if (debug) printList(mode === "hybrid" ? "MERGED (what the model sees)" : "RETRIEVED", chunks);
 
+    // 2 + 3. AUGMENT + GENERATE
+    const answer = await answerQuestion(question, chunks);
     console.log("\nANSWER:\n" + answer);
 
-    // 4. CITE: OUR code turns [1]..[5] back into real addresses.
+    // 4. CITE
     console.log("\nSOURCES:");
     chunks.forEach((c, i) => {
       const where = c.page ? `${c.source}, page ${c.page}` : c.source;
-      console.log(
-        `[${i + 1}] ${where}, chunk ${c.position} (score ${c.similarity.toFixed(2)})`
-      );
+      console.log(`[${i + 1}] ${where}, chunk ${c.position} (score ${c.similarity.toFixed(3)})`);
     });
   } finally {
     await pool.end();

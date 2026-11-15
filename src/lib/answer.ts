@@ -2,6 +2,7 @@ import { client } from "./openai";
 
 // One chunk as it comes back from the database.
 export type RetrievedChunk = {
+    id: number;              // the row id — needed so the merge can spot the SAME chunk in two lists
     source: string;
     page: number | null;
     position: number;
