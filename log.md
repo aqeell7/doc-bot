@@ -65,3 +65,19 @@ Overlap (500/100) didn't chop a single fact across 22 questions.
    A different language or vague words land far away on the meaning map, so
    retrieval brings the wrong chunks.
    Fix later: rewrite or translate the question before embedding it.
+
+
+   ## S2 — Re-ranking (top-20 → LLM picks top-5)
+
+| Q | Before (hybrid top 5) | After (rerank) | Verdict |
+|---|---|---|---|
+| F1 Is it free? | correct | same, 3 chunks | no change (both pass) |
+| F2 Free plan limits | 1 fact (10 MB) | 1 fact | no change — answer prompt only lists "cannot" sentences |
+| F3 Hindi refund | Team + duplicate only | Plus monthly/yearly + Team + duplicate + cancel | FIXED — chunk 7 moved to [1] |
+| F5 billing | no refund rules (chunks 7, 8 missing) | all refund rules; lost taxes + renewal (chunk 5 dropped) | partly better |
+| F6 typo refund | correct, to the point | added Team rule not asked for | slightly worse |
+
+- Rerank latency: 4.8–9.2 s per question (extra nano call).
+- Rerank helps when the right chunk is in the top 20 but ranked low (F3, F5).
+- It can't fix answer-prompt problems (F2, F6). Broad questions may need more than 5 chunks even after reranking.
+- One run per question; answers vary between runs.

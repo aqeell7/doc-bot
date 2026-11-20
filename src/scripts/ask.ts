@@ -1,6 +1,7 @@
 import { pool } from "../lib/db";
 import { retrieve, vectorSearch, keywordSearch, SearchMode } from "../lib/retrieve";
 import { answerQuestion, RetrievedChunk } from "../lib/answer";
+import { rerank } from "../lib/rerank";
 
 // Read a flag like --mode=hybrid → "hybrid". Missing → undefined.
 function flag(name: string): string | undefined {
@@ -24,6 +25,7 @@ async function ask() {
   const mode = (flag("mode") ?? "hybrid") as SearchMode; // vector | keyword | hybrid
   const source = flag("source");                         // e.g. nimbus-admin-guide.pdf
   const filter = source ? { source } : {};
+  const useRerank = process.argv.includes("--rerank");
 
   // The question = the first argument that isn't a --flag.
   const question = process.argv.slice(2).find((a) => !a.startsWith("--"));
@@ -43,8 +45,22 @@ async function ask() {
     }
 
     // 1. RETRIEVE
-    const chunks = await retrieve(question, 5, mode, filter);
-    if (debug) printList(mode === "hybrid" ? "MERGED (what the model sees)" : "RETRIEVED", chunks);
+        let chunks: RetrievedChunk[];
+      if (useRerank) {
+      // the screen: grab 20 candidates
+      const candidates = await retrieve(question, 20, mode, filter);
+      if (debug) printList("BEFORE RERANK (20 candidates)", candidates);
+
+      // the interview: the LLM picks the best 5
+      const started = Date.now();
+      chunks = await rerank(question, candidates, 5);
+      console.log(`rerank took ${Date.now() - started} ms`);
+      if (debug) printList("AFTER RERANK (what the model sees)", chunks);
+    } else {
+      // no rerank: search's own top 5, same as before
+      chunks = await retrieve(question, 5, mode, filter);
+      if (debug) printList(mode === "hybrid" ? "MERGED (what the model sees)" : "RETRIEVED", chunks);
+    }
 
     // 2 + 3. AUGMENT + GENERATE
     const answer = await answerQuestion(question, chunks);
