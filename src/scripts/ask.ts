@@ -2,6 +2,9 @@ import { pool } from "../lib/db";
 import { retrieve, vectorSearch, keywordSearch, SearchMode } from "../lib/retrieve";
 import { answerQuestion, RetrievedChunk } from "../lib/answer";
 import { rerank } from "../lib/rerank";
+import { rewriteQuestion } from "../lib/rewrite";
+import { takeTurns } from "../lib/merge";
+import { SearchFilter } from "../lib/retrieve";
 
 // Read a flag like --mode=hybrid → "hybrid". Missing → undefined.
 function flag(name: string): string | undefined {
@@ -20,12 +23,20 @@ function printList(title: string, list: RetrievedChunk[]) {
   });
 }
 
+// Search every query, then let the lists take turns.
+// With just one query, this gives the same result as retrieve() alone.
+async function search(queries: string[], k: number, mode: SearchMode, filter: SearchFilter) {
+  const lists = await Promise.all(queries.map((q) => retrieve(q, k, mode, filter)));
+  return takeTurns(lists, k);
+}
+
 async function ask() {
   const debug = process.argv.includes("--debug");
   const mode = (flag("mode") ?? "hybrid") as SearchMode; // vector | keyword | hybrid
   const source = flag("source");                         // e.g. nimbus-admin-guide.pdf
   const filter = source ? { source } : {};
   const useRerank = process.argv.includes("--rerank");
+  const useRewrite = process.argv.includes("--rewrite");
 
   // The question = the first argument that isn't a --flag.
   const question = process.argv.slice(2).find((a) => !a.startsWith("--"));
@@ -44,11 +55,20 @@ async function ask() {
       printList("KEYWORD LIST (before merge)", await keywordSearch(question, 10, filter));
     }
 
+        // 0. REWRITE (optional): turn the question into 1–3 clean search queries
+    let searchQueries = [question];
+    if (useRewrite) {
+      const rw = await rewriteQuestion(question);
+      searchQueries = rw.queries;
+      console.log("REWRITTEN:", searchQueries);
+      console.log(`rewrite: ${rw.ms} ms, ${rw.inputTokens} in + ${rw.outputTokens} out tokens, $${rw.costUsd.toFixed(6)}`);
+    }
+
     // 1. RETRIEVE
         let chunks: RetrievedChunk[];
       if (useRerank) {
       // the screen: grab 20 candidates
-      const candidates = await retrieve(question, 20, mode, filter);
+      const candidates = await search(searchQueries, 20, mode, filter);
       if (debug) printList("BEFORE RERANK (20 candidates)", candidates);
 
       // the interview: the LLM picks the best 5
@@ -58,7 +78,7 @@ async function ask() {
       if (debug) printList("AFTER RERANK (what the model sees)", chunks);
     } else {
       // no rerank: search's own top 5, same as before
-      chunks = await retrieve(question, 5, mode, filter);
+      chunks = await search(searchQueries, 5, mode, filter);
       if (debug) printList(mode === "hybrid" ? "MERGED (what the model sees)" : "RETRIEVED", chunks);
     }
 

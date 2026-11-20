@@ -57,6 +57,51 @@ export function mergeResults(
 }
 
 
+// Combine several ranked lists by TAKING TURNS (playground team-picking).
+// Used after query rewriting: each list belongs to a different part of the
+// question, so every part must get seats in the final pile.
+// (Different from mergeResults, which rewards chunks found by BOTH lists.)
+export function takeTurns(lists: RetrievedChunk[][], total: number): RetrievedChunk[] {
+  const result: RetrievedChunk[] = [];
+  const usedIds = new Set<number>();
+
+  // round 0 = everyone's 1st choice, round 1 = everyone's 2nd choice, ...
+  for (let round = 0; result.length < total; round++) {
+    let anyListHadOne = false;
+
+    for (const list of lists) {
+      // (1) This list doesn't have an item at index `round`
+      if (round >= list.length) {
+        continue;
+      }
+
+      // (2) This list has a chunk at `round` — mark round as active and grab it
+      anyListHadOne = true;
+      const chunk = list[round];
+
+      // (3) Skip if we already added a chunk with this same id
+      if (usedIds.has(chunk.id)) {
+        continue;
+      }
+
+      // (4) Keep this chunk, remember its id, and stop if we hit `total`
+      result.push(chunk);
+      usedIds.add(chunk.id);
+
+      if (result.length >= total) {
+        break;
+      }
+    }
+
+    // (5) If no list had a chunk at `round`, all lists are exhausted — stop outer loop
+    if (!anyListHadOne) {
+      break;
+    }
+  }
+
+  return result;
+}
+
 /*
 
 npx tsx scratch/merge-drill.ts

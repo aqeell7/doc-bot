@@ -81,3 +81,23 @@ Overlap (500/100) didn't chop a single fact across 22 questions.
 - Rerank helps when the right chunk is in the top 20 but ranked low (F3, F5).
 - It can't fix answer-prompt problems (F2, F6). Broad questions may need more than 5 chunks even after reranking.
 - One run per question; answers vary between runs.
+
+## S3 — Query rewriting (LLM turns the question into 1–3 clean search queries)
+
+| Q | Rewrite did | Result |
+|---|---|---|
+| 2-part: edit sharing + support speed | split into 2 ✅ | correct — but plain hybrid was already correct |
+| F2 Free plan limits | no split | still 1–2 facts; sharing (#10) + support (#15) WERE retrieved → writer problem → S5 |
+| F3 Hindi | translated ✅ | still missing Plus refunds (needs rerank, S2) |
+| F6 typo | fixed spelling ✅ | correct |
+| F1 Is it free? | made specific ✅ | correct, thinner |
+
+Cost/time of the rewrite step:
+| setting | time | out tokens | cost/question |
+|---|---|---|---|
+| default thinking | ~4.7 s | ~438 | $0.00018 |
+| reasoning_effort minimal | ~1.7 s | ~22 | $0.00002 |
+
+- Rewrite cleans words well (typos, language, vagueness) but can only split VISIBLE multi-part questions.
+- >90% of the default cost was hidden thinking; minimal is 10× cheaper but ignored a complex rule.
+- Writer bug: lists facts then appends "I don't know based on the documents." → S5.
