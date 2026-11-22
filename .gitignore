@@ -3,3 +3,5 @@ dist/
 .env*
 !.env.example
 .backup/
+.next/
+next-env.d.ts

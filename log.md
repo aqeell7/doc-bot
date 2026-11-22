@@ -101,3 +101,16 @@ Cost/time of the rewrite step:
 - Rewrite cleans words well (typos, language, vagueness) but can only split VISIBLE multi-part questions.
 - >90% of the default cost was hidden thinking; minimal is 10× cheaper but ignored a complex rule.
 - Writer bug: lists facts then appends "I don't know based on the documents." → S5.
+
+## S4 — Chat UI + streaming
+
+| Writer setting | refund | billing | Hindi | France (guard) |
+|---|---|---|---|---|
+| default | 10.5 s ✅ | 18.6 s ✅ 12 facts | 11.6 s ✅ | — |
+| minimal | 3.7 s ✅ | 2.6 s ❌ "I don't know" | 2.9 s ⚠️ sloppy | 2.1 s ✅ refused |
+| low (chosen) | 4.2 s ✅ | 6.0 s ✅ 9 facts | 4.0 s ✅ | 2.2 s ✅ refused |
+
+- With default thinking, 90%+ of the wait was hidden thinking; writing took only 0.2–1.5 s.
+- Streaming helps most with long answers; nano writes short answers so fast they appear almost at once.
+- Too little thinking broke a judgement call (billing refused). Keep a guard question in every speed test.
+- Measuring mistake: the browser only gets a response at the first piece, so search time must be logged on the server.

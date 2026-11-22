@@ -9,7 +9,8 @@
     "seed": "tsx --env-file=.env src/scripts/seed-sentences.ts",
     "search": "tsx --env-file=.env src/scripts/search.ts",
     "ingest": "tsx --env-file=.env src/scripts/ingest.ts",
-    "ask": "tsx --env-file=.env src/scripts/ask.ts"
+    "ask": "tsx --env-file=.env src/scripts/ask.ts",
+    "dev": "next dev"
   },
   "keywords": [],
   "author": "",
@@ -17,13 +18,18 @@
   "type": "module",
   "dependencies": {
     "dotenv": "^18.0.9",
+    "next": "^16.4.6",
     "openai": "^7.43.0",
     "pg": "^8.23.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "unpdf": "^1.7.0"
   },
   "devDependencies": {
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }

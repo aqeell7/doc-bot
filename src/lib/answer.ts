@@ -34,3 +34,24 @@ export async function answerQuestion(question: string, chunks: RetrievedChunk[])
 
     return response.choices[0]?.message?.content ?? "";
 }
+
+// Same prompt and context as answerQuestion, but the reply arrives in PIECES.
+export async function* streamAnswer(question: string, chunks: RetrievedChunk[]): AsyncGenerator<string> {
+    const context = chunks.map((chunk, i) => `[${i + 1}] ${chunk.content}`).join("\n\n");
+    const userMessage = "Content:\n" + context + "\n\nQuestion: " + question;
+
+    const stream = await client.chat.completions.create({
+        model: "gpt-5-nano",
+        reasoning_effort: "low",   // middle ground: some thinking for the "does the context answer this?" judgement       
+        messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user", content: userMessage },
+        ],
+        stream: true,
+    });
+
+    for await (const event of stream) {
+        const piece = event.choices[0]?.delta?.content;
+        if (piece) yield piece;
+    }
+}
