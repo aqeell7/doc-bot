@@ -114,3 +114,19 @@ Cost/time of the rewrite step:
 - Streaming helps most with long answers; nano writes short answers so fast they appear almost at once.
 - Too little thinking broke a judgement call (billing refused). Keep a guard question in every speed test.
 - Measuring mistake: the browser only gets a response at the first piece, so search time must be logged on the server.
+
+
+## S5 — Citations, refusals, nasty input
+
+| Test | Result |
+|---|---|
+| refund citation | ✅ [1] → chunk 7 contains the 14-day rule |
+| F2 Free plan | ❌ only "10 MB"; support (#15) + sharing (#10) given but not cited |
+| F4 Team after 2 months | ✅ partial answer (30-day rule + "docs don't cover after 30 days") |
+| billing | ⚠️ no trailing refusal; tax fact repeated once |
+| France / injection / SQL-looking / emoji | ✅ refusal box, no crash |
+| curl: too long / not JSON / missing.pdf | ✅ 400 / 400 / instant refusal, no model call |
+
+- Partial-answer rule fixed F4. "Include every fact" did not fix F2 at low effort.
+- Prompt rules are requests; the [n] range check in code is the guarantee.
+- SQL injection blocked by $1 placeholders (+ keyword sanitising). Prompt injection only reduced (system rules, question as data, no tools/secrets, React escapes text).

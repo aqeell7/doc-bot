@@ -1,4 +1,5 @@
 import { client } from "./openai";
+import { REFUSAL } from "./refusal";
 
 // One chunk as it comes back from the database.
 export type RetrievedChunk = {
@@ -14,9 +15,11 @@ export type RetrievedChunk = {
 const SYSTEM_PROMPT = `You answer questions using ONLY the numbered context passages provided.
 Rules:
 1. Use only facts stated in the context. Do not use outside knowledge.
-2. After each fact, cite the passage number in square brackets, like [2].
-3. If the context does not contain the answer, reply exactly: "I don't know based on the documents."
-4. Keep answers short and plain.`;
+2. After each fact, cite the passage number in square brackets, like [2]. Only use numbers of passages you were given.
+3. Answer only what was asked, but include EVERY fact in the context that answers it, even if it is worded differently from the question.
+4. If the context answers only part of the question, give that part, then say in one sentence what the documents do not cover.
+5. If the context contains nothing that answers the question, reply exactly: "${REFUSAL}" and nothing else.
+6. Never repeat a fact. Keep answers short and plain.`;
 
 export async function answerQuestion(question: string, chunks: RetrievedChunk[]): Promise<string> {
 
