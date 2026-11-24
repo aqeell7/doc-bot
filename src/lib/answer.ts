@@ -1,5 +1,6 @@
 import { client } from "./openai";
 import { REFUSAL } from "./refusal";
+import { recordChat, type Meter } from "./meter";
 
 // One chunk as it comes back from the database.
 export type RetrievedChunk = {
@@ -21,12 +22,13 @@ Rules:
 5. If the context contains nothing that answers the question, reply exactly: "${REFUSAL}" and nothing else.
 6. Never repeat a fact. Keep answers short and plain.`;
 
-export async function answerQuestion(question: string, chunks: RetrievedChunk[]): Promise<string> {
+export async function answerQuestion(question: string, chunks: RetrievedChunk[], meter?: Meter): Promise<string> {
 
     const context = chunks.map((chunk, i) => `[${i + 1}] ${chunk.content}`).join("\n\n")
 
     const userMessage = "Content:\n" + context + "\n\nQuestion: " + question;
 
+    const started = Date.now();    
     const response = await client.chat.completions.create({
         model: "gpt-5-nano",
         messages: [
@@ -34,7 +36,8 @@ export async function answerQuestion(question: string, chunks: RetrievedChunk[])
             { role: "user", content: userMessage }
         ]
     })
-
+    
+    recordChat(meter, "generate", "gpt-5-nano", Date.now() - started, response.usage);
     return response.choices[0]?.message?.content ?? "";
 }
 

@@ -177,3 +177,31 @@ Browser tests at 0.95 (cache emptied first):
 - Misses now pay one extra embedding + DB lookup, and the question is embedded twice (cache + vectorSearch) → measure in S2.
 - After any re-ingest or prompt change: `TRUNCATE answer_cache;`
 - Real paraphrase caching needs an extra guard (rewrite the question to a standard wording, or match key words like yearly/monthly, Free/Plus) → capstone (Week 7 S5).
+
+
+## Week 3 S2 — Measure everything (per-stage time, tokens, cost)
+
+One request ("How long do I have to ask for a refund?", --rewrite --rerank):
+
+| stage | time | share | in | out (thinking) | cost | share |
+|---|---|---|---|---|---|---|
+| rewrite | 3257 ms | 12% | 205 | 27 (0) | $0.000021 | 1% |
+| retrieve | 3183 ms | 12% | 12 | 0 | $0.000000 | 0% |
+| rerank | 6680 ms | 25% | 2220 | 1109 (1088) | $0.000555 | 35% |
+| generate | 13690 ms | 51% | 512 | 2503 (2368) | $0.001027 | 64% |
+| **total** | **26810 ms** | | 6588 tokens | | **$0.001603** | |
+
+Average over 6 questions (refund, Is it free?, Free plan limits, Hindi refund, SSO, France):
+
+| pipeline | avg cost / question | per 1,000 | avg time |
+|---|---|---|---|
+| basic (hybrid → write) | $0.000606 | $0.61 | 8.6 s |
+| full (+ rewrite + rerank) | $0.001451 | $1.45 | 21.7 s |
+
+- **Average cost per question: $0.0006 (basic) / $0.0015 (full).**
+- 95–98% of rerank + writer output tokens are hidden thinking; output costs 8× input → thinking is the bill.
+- rewrite at "minimal" effort = 1% of cost; rerank + CLI writer at default effort = 99%.
+- Money is cheap ($1.45 per 1,000), time is the problem (22 s per full answer).
+- Refusals still pay every stage (France $0.00015–$0.0003).
+- A cache hit skips all 4 stages (~1 embedding) → saves ~$0.0015 and ~20 s on the full pipeline.
+- Cost only — answer quality was not compared in this run. One run per question; times vary (Neon/network).

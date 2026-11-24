@@ -1,4 +1,5 @@
 import { client } from "./openai";
+import { recordChat, type Meter } from "./meter";
 
 const REWRITE_PROMPT = `You turn a user's question into search queries for a document search engine.
 The documents are an English help handbook for a note-taking app called Nimbus Notes.
@@ -30,7 +31,7 @@ function readQueries(text: string, original: string): string[] {
   }
 }
 
-export async function rewriteQuestion(question: string) {
+export async function rewriteQuestion(question: string, meter?: Meter) {
   const started = Date.now();
 
   const response = await client.chat.completions.create({
@@ -44,6 +45,7 @@ export async function rewriteQuestion(question: string) {
   });
 
   const ms = Date.now() - started;
+  recordChat(meter, "rewrite", "gpt-5-nano", ms, response.usage);  
   const inputTokens = response.usage?.prompt_tokens ?? 0;
   const outputTokens = response.usage?.completion_tokens ?? 0;
   const costUsd = (inputTokens * INPUT_PRICE + outputTokens * OUTPUT_PRICE) / 1_000_000;

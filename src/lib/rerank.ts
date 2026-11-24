@@ -1,5 +1,6 @@
 import { client } from "./openai";
 import { RetrievedChunk } from "./answer";
+import { recordChat, type Meter } from "./meter";
 
 export function pickChunks(
   picked: number[],
@@ -54,12 +55,14 @@ function readRanking(text: string): number[] {
 export async function rerank(
   question: string,
   chunks: RetrievedChunk[],
-  k: number
+    k: number,
+  meter?: Meter
 ): Promise<RetrievedChunk[]> {
   if (chunks.length === 0) return [];
 
   const passages = chunks.map((c, i) => `[${i + 1}] ${c.content}`).join("\n\n");
 
+  const started = Date.now();  
   const response = await client.chat.completions.create({
     model: "gpt-5-nano",
     response_format: { type: "json_object" },
@@ -69,6 +72,7 @@ export async function rerank(
     ],
   });
 
+  recordChat(meter, "rerank", "gpt-5-nano", Date.now() - started, response.usage);
   const text = response.choices[0]?.message?.content ?? "";
   return pickChunks(readRanking(text), chunks, k);
 }
