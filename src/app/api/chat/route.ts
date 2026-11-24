@@ -2,6 +2,7 @@ import { retrieve } from "../../../lib/retrieve";
 import { streamAnswer } from "../../../lib/answer";
 import { REFUSAL } from "../../../lib/refusal";
 import type { SourceInfo } from "../../../lib/citations";
+import { lookupCache, saveToCache } from "../../../lib/cache";
 
 export const runtime = "nodejs";
 
@@ -23,6 +24,30 @@ export async function POST(req: Request) {
     );
   }
   const source = typeof body?.source === "string" ? body.source : undefined; // optional filter (S1)
+
+    // 1b. Semantic cache: has a question with the same MEANING been answered before?
+  // A broken cache must never break the bot, so a failure just means "no cache this time".
+  const cache = await lookupCache(question, source ?? null).catch((err) => {
+    console.error("cache lookup failed (carrying on without it):", err);
+    return null;
+  });
+
+  if (cache?.hit) {
+    console.log(
+      `cache HIT: ${Date.now() - t0} ms, score ${cache.hit.similarity.toFixed(3)}, matched "${cache.hit.question}"`
+    );
+    return new Response(cache.hit.answer, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Sources": encodeURIComponent(cache.hit.sources),
+        "X-Cache": "hit",
+      },
+    });
+  }
+  if (cache) {
+    const top = cache.topScore === null ? "none (cache empty)" : cache.topScore.toFixed(3);
+    console.log(`cache miss: ${cache.ms} ms, best score ${top}`);
+  }
 
   // 2. Search, before the pipe opens, so a failure can still be a proper 500.
   let chunks;
@@ -51,23 +76,40 @@ export async function POST(req: Request) {
     snippet: c.content.slice(0, 400),
   }));
 
-  // 5. Stream the answer (your S4 pipe, unchanged).
+  // 5. Stream the answer, and keep a copy of the full text for the cache.
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
       let pieces = 0;
+      let fullAnswer = "";
+      let failed = false;
       try {
         for await (const piece of streamAnswer(question, chunks)) {
           if (pieces === 0) console.log(`first piece: ${Date.now() - t0} ms`);
           pieces++;
+          fullAnswer += piece;
           controller.enqueue(encoder.encode(piece));
         }
       } catch (err) {
+        failed = true;
         console.error("answer stream failed:", err);
         controller.enqueue(encoder.encode("\n\n[Sorry, something went wrong while writing the answer.]"));
       } finally {
         console.log(`done: ${Date.now() - t0} ms, ${pieces} pieces`);
         controller.close();
+      }
+
+      // 6. Save good answers for next time. Runs AFTER close, so the user never waits for it.
+      const answer = fullAnswer.trim();
+      if (cache && !failed && answer !== "" && answer !== REFUSAL) {
+        try {
+          await saveToCache(question, source ?? null, cache.embedding, answer, JSON.stringify(sources));
+          console.log("cache: saved");
+        } catch (err) {
+          console.error("cache save failed:", err);
+        }
+      } else {
+        console.log("cache: not saved (refusal, error, or cache was down)");
       }
     },
   });

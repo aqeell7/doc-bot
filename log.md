@@ -130,3 +130,50 @@ Cost/time of the rewrite step:
 - Partial-answer rule fixed F4. "Include every fact" did not fix F2 at low effort.
 - Prompt rules are requests; the [n] range check in code is the guarantee.
 - SQL injection blocked by $1 placeholders (+ keyword sanitising). Prompt injection only reduced (system rules, question as data, no tools/secrets, React escapes text).
+
+
+
+## Week 3 S1 — Semantic cache (reuse an answer when a new question means the same)
+
+How it works: embed the question → find the 3 closest saved questions in `answer_cache`
+(same source filter) → if the best score ≥ threshold, return the saved answer + sources
+(no search, no writer). Otherwise answer normally, then save it after the stream closes.
+Refusals and errors are never saved.
+
+Threshold probe (cosine score between two questions):
+
+| score | kind | pair |
+|---|---|---|
+| 0.932 | DIFFERENT | refund on monthly Plus ⟷ refund on yearly Plus |
+| 0.836 | DIFFERENT | file limit on Free ⟷ file limit on Plus |
+| 0.771 | SAME | turn on dark mode ⟷ enable the dark theme |
+| 0.756 | DIFFERENT | free plan ⟷ free trial |
+| 0.726 | SAME | get a refund ⟷ get my money back |
+| 0.707 | DIFFERENT | add a team member ⟷ remove a team member |
+| 0.645 | SAME | get a refund ⟷ get a refnd (typo) |
+| 0.645 | SAME | how long to ask for a refund ⟷ refund window |
+| 0.564 | SAME | support SSO ⟷ log in with single sign-on |
+| 0.185 | SAME | refund (English) ⟷ refund (Hindi) |
+| 0.065 | UNRELATED | refund ⟷ capital of France |
+
+- No safe gap: SAME pairs scored 0.56–0.77, DIFFERENT pairs up to 0.93.
+- Chose **0.95** = above every DIFFERENT pair. At 0.90, "yearly Plus refund?" could get the monthly answer.
+
+Browser tests at 0.95 (cache emptied first):
+
+| # | Question | Time | Result |
+|---|---|---|---|
+| 1 | How long do I have to ask for a refund? | 13.5 s | miss, saved |
+| 2 | same again | 1.4 s | HIT ✅ (sources panel still works) |
+| 3 | same, lowercase, no "?" | 6.8 s | miss |
+| 4 | "request" instead of "ask for" | 7.4 s | miss |
+| 5 | refund on monthly Plus? | 3.8 s | miss → "No, not refundable" |
+| 6 | refund on yearly Plus? | 6.2 s | miss → "Yes, within 14 days" ✅ different, correct |
+| 7 | capital of France | — | refusal, not saved ✅ |
+
+- C1 ❌ (proven cause): at a safe threshold only exact repeats hit; no reworded question hit.
+- Embeddings score "same words and topic", not "same answer". Too loose = confidently WRONG answers, which is worse than slow.
+- Hits are fast: 0.5–0.7 s (curl) / 1.4 s (browser) vs 4–13 s for a miss.
+- Misses now pay one extra embedding + DB lookup, and the question is embedded twice (cache + vectorSearch) → measure in S2.
+- After any re-ingest or prompt change: `TRUNCATE answer_cache;`
+- Real paraphrase caching needs an extra guard (rewrite the question to a standard wording, or match key words like yearly/monthly, Free/Plus) → capstone (Week 7 S5).

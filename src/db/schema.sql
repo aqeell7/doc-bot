@@ -63,3 +63,16 @@ ALTER TABLE chunks ADD COLUMN IF NOT EXISTS content_tsv tsvector
 -- GIN index = the "back-of-the-book index" for words: word -> which rows.
 -- Not needed at 22 rows, but it's the standard partner of a tsvector column.
 CREATE INDEX IF NOT EXISTS chunks_content_tsv_idx ON chunks USING gin (content_tsv);
+
+-- =====================================================================
+-- Week 3 S1 — semantic cache (the clerk's notebook)
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS answer_cache (
+  id            bigserial PRIMARY KEY,
+  question      text NOT NULL,          -- the question as the user typed it
+  source_filter text,                   -- NULL = all docs; else e.g. 'nimbus-admin-guide.pdf'
+  embedding     vector(1536) NOT NULL,  -- the question's meaning-address
+  answer        text NOT NULL,          -- the full finished answer
+  sources       text NOT NULL,          -- the sources list (JSON text) shown under the answer
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
