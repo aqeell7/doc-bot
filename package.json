@@ -9,6 +9,7 @@
     "seed": "tsx --env-file=.env src/scripts/seed-sentences.ts",
     "search": "tsx --env-file=.env src/scripts/search.ts",
     "ingest": "tsx --env-file=.env src/scripts/ingest.ts",
+    "setup-db": "tsx --env-file=.env src/scripts/setup-db.ts",    
     "ask": "tsx --env-file=.env src/scripts/ask.ts",
     "dev": "next dev"
   },
